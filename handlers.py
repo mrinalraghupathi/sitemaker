@@ -1,6 +1,7 @@
 import os
 import yaml
 import utils
+from pprint import pprint, pformat
 
 class HTMLPage(object):
     def __init__(self, site, path):
@@ -39,12 +40,14 @@ class HTMLPage(object):
         """Return an iterable of destinations and strings to render"""
         self.load_template()
         self.load_data()
+        pprint(self.data)
         return [(self.dest, self.tmpl.render(**self.data))]
 
 class IntranetCopy(HTMLPage):
     def render(self):
         self.load_template()
         self.load_data()
+
         return [(self.dest, self.tmpl.render(**self.data)),
                 ('local/' + self.dest, self.tmpl.render(intranet = True,
                                                         **self.data))]

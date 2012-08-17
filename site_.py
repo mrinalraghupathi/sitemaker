@@ -7,6 +7,7 @@ import imp
 from datetime import datetime, time, date
 from handlers import *
 from query import Query
+import shutil
 opj = os.path.join
 
 class Site(object):
@@ -57,37 +58,49 @@ class Site(object):
     def build(self):
         src_dir =  self.config['src_dir']
         for path, ds, fs in os.walk(src_dir):
-            print self.basepath, path, fs
             for f in fs:
                 fullpath = opj(self.basepath, path, f)
-                path = os.path.relpath(opj(path, f), src_dir)
+                relpath = os.path.relpath(opj(path, f), src_dir)
                 fname, ext = os.path.splitext(f)
                 for pattern, handler in self.routes:
-                    m = pattern.match(path)
+                    m = pattern.match(relpath)
+                    print pattern
                     if m:
-                        h = handler(self, path)
+                        h = handler(self, relpath)
                         self.things.append(h)
                         for output in h.render():
-                            o = open(opj(self.basepath,
-                                         self.config['dest_dir'],
-                                         output[0]),
-                                     'w')
+                            opath = opj(self.basepath,
+                                        self.config['dest_dir'],
+                                        output[0])
+                            odir = os.path.dirname(opath)
+                            if not os.path.isdir(odir):
+                                os.makedirs(odir)
+                            o = open(opath, 'w')
+                            print "Writing {0}".format(opath)
                             o.write(output[1])
                             o.close()
 
         fdir = self.config['files_dir']
         for path, ds, fs in os.walk(fdir):
             for f in fs:
-                src = opj(fdir, path, f)
-                dest = opj(self.config['dest_dir'], path, f)
+                src = opj(path, f)
+                relpath = os.path.relpath(opj(path, f), fdir)
+                dest = opj(self.config['dest_dir'], relpath)
                 
                 src_time = os.path.getmtime(src)
-                dest_time = os.path.getmtime(dest)
-
-                if src_time > dest_time:
-                    print "Copying {0} --> {1}".format(src, dest)
+                should_copy = False
+                if os.path.isfile(dest):
+                    dest_time = os.path.getmtime(dest)
+                    if src_time > dest_time:
+                        should_copy = True
                 else:
-                    print "The files are fine"
+                    should_copy = True
+                print "Will this be copied {0}".format(should_copy)
+                if should_copy:
+                    odir = os.path.dirname(dest)
+                    if not os.path.isfile(odir):
+                        os.makedirs(odir)
+                    shutil.copy2(src, dest)
                     
     def get_template(self, name):
         if name not in self.templates:
@@ -96,6 +109,4 @@ class Site(object):
 
     def get_data(self, query_string):
         q = Query(self.config['data_dir'], query_string)
-        return q.load_data()
-        
-        
+        return q.load_data()        

@@ -4,7 +4,7 @@ import os
 import yaml
 import json
 import csv
-
+from pprint import pprint
 from parsers import parse_sql, parse_file_listing
 
 def getattrs(adict, attrs):
@@ -100,12 +100,14 @@ class Query(object):
         data = []
         try:
             f = open(os.path.join(self.datadir, self.filename), 'r')
-        except IOError:
-            pass
+        except IOError as e:
+            print "Could not load {0}".format(e)
         else:
             basename, ext = os.path.splitext(self.filename)
+            print basename, ext
             if ext == '.yaml':
                 data = yaml.load(f.read())
+
             elif ext == '.json':
                 data = json.loads(f.read())
             elif ext == '.csv':
@@ -114,7 +116,7 @@ class Query(object):
 
         data = self._filter(data)
         # In-place sort
-        print data
+        pprint(data)
         self._sort(data)
         if self.fields:
             data = [getattrs(x, self.fields) for x in data]
