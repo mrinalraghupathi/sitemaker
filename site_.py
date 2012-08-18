@@ -6,6 +6,7 @@ import imp
 from datetime import datetime, time, date
 import shutil
 
+from hashlib import sha1
 import yaml
 
 from handlers import *
@@ -48,16 +49,20 @@ class Site(object):
 
         self.templates = {}
         # Hacky, clean up later
-        def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
+        def string_to_date(value, format='%H:%M / %d-%m-%Y'):
             dt = datetime.strptime(value, '%m/%d/%Y')
             return dt.strftime(format)
+        def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
+            return value.strftime(format)
+        
         def linktofile(value):
             name, ext = os.path.splitext(value)
             return '<a href="{0}">[{1}]</a>'.format(value, ext[1:].upper())
         self.env = utils.make_html_env(opj(self.basepath,
                                            self.config['template_dir']))
-        self.env.filters['datetimeformat'] = datetimeformat
+        self.env.filters['datetimeformat'] = string_to_date
         self.env.filters['linktofile'] = linktofile
+        self.env.filters['formattime'] = datetimeformat
         self.things = []
         self.pages = []
         self.files = []
@@ -66,7 +71,7 @@ class Site(object):
         for i, rt in enumerate(self.routes):
             self.routes[i] = (re.compile(rt[0]), rt[1])
             
-    def build(self):
+    def build(self, paths_to_build = []):
         src_dir =  self.config['src_dir']
         for path, ds, fs in os.walk(src_dir):
             for f in fs:
@@ -85,10 +90,22 @@ class Site(object):
                             odir = os.path.dirname(opath)
                             if not os.path.isdir(odir):
                                 os.makedirs(odir)
-                            o = codecs.open(opath, 'w', 'utf-8')
-                            print "Writing {0}".format(output['dest']) 
-                            o.write(output['text'])
-                            o.close()
+                                
+                            should_write = True
+                            if os.path.isfile(opath):
+                                fh = open(opath, 'rb')
+                                s = fh.read()
+                                fh.close()
+                                current_hash = sha1(s).hexdigest()
+                                new_hash = sha1(output['text'].encode('utf-8')).hexdigest()
+                                if current_hash == new_hash:
+                                    should_write = False
+                                
+                            if should_write:
+                                o = codecs.open(opath, 'w', 'utf-8')
+                                print "Writing {0}".format(output['dest']) 
+                                o.write(output['text'])
+                                o.close()
 
         fdir = self.config['files_dir']
         for path, ds, fs in os.walk(fdir):
@@ -105,8 +122,9 @@ class Site(object):
                         should_copy = True
                 else:
                     should_copy = True
-                print "Will this be copied {0}".format(should_copy)
+
                 if should_copy:
+                    print "Copying {0} {1}".format(src, dest)
                     odir = os.path.dirname(dest)
                     if not os.path.isdir(odir):
                         os.makedirs(odir)

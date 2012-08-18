@@ -41,7 +41,7 @@ class HTMLPage(object):
         """Return an iterable of destinations and strings to render"""
         self.load_template()
         self.load_data()
-        pprint(self.data)
+        # pprint(self.data)
         return [{'dest' : self.dest,
                  'text' : self.tmpl.render(**self.data)}]
 
