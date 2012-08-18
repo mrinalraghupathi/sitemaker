@@ -31,6 +31,7 @@ class HTMLPage(object):
         self.dest = self.path
         self.data['root'] = utils.compute_root(self.dest)
         self.data['gentime'] = self.site.config['time']
+        self.data['sitetitle'] = self.site.config['sitetitle']
     def load_template(self):
         self.tmpl = self.site.get_template(self.template)
     def load_data(self):
@@ -41,16 +42,18 @@ class HTMLPage(object):
         self.load_template()
         self.load_data()
         pprint(self.data)
-        return [(self.dest, self.tmpl.render(**self.data))]
+        return [{'dest' : self.dest,
+                 'text' : self.tmpl.render(**self.data)}]
 
 class IntranetCopy(HTMLPage):
     def render(self):
         self.load_template()
         self.load_data()
 
-        return [(self.dest, self.tmpl.render(**self.data)),
-                ('local/' + self.dest, self.tmpl.render(intranet = True,
-                                                        **self.data))]
+        return [{'dest' : self.dest,
+                 'text' : self.tmpl.render(**self.data)},
+                {'dest' : 'local/' + self.dest,
+                 'text' : self.tmpl.render(intranet = True, **self.data)}]
         
 class File(object):
     pass

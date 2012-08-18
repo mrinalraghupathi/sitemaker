@@ -84,7 +84,11 @@ class Query(object):
         
     def _sort(self, xs):
         for field, direction in self.order:
-            xs.sort(key = lambda x : x[field], reverse = direction)
+            try:
+                xs.sort(key = lambda x : x[field], reverse = direction)
+            except Exception as e:
+                print "Exception:", e
+                print self.filename, xs
         return xs
             
     def _filter(self, xs):
@@ -101,7 +105,7 @@ class Query(object):
         try:
             f = open(os.path.join(self.datadir, self.filename), 'r')
         except IOError as e:
-            print "Could not load {0}".format(e)
+            print "Could not load {0} {1}".format(e, self.filename)
         else:
             basename, ext = os.path.splitext(self.filename)
             print basename, ext
@@ -116,7 +120,7 @@ class Query(object):
 
         data = self._filter(data)
         # In-place sort
-        pprint(data)
+        # pprint(data)
         self._sort(data)
         if self.fields:
             data = [getattrs(x, self.fields) for x in data]

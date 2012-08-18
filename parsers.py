@@ -51,7 +51,7 @@ def parse_date(val):
                 
 w = Word(alphas + '_')
 w1 = Word(alphanums + '_')
-wf = Word(alphanums + '_-.$%#')
+wf = Word(alphanums + '_-.$%#/')
 op = oneOf('= < > !=')
 key = w1    
 values = OneOrMore(Word(alphanums + "_'"))

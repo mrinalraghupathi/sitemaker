@@ -1,13 +1,16 @@
 import os
 import codecs
 import csv
-import yaml
 import re
 import imp
 from datetime import datetime, time, date
+import shutil
+
+import yaml
+
 from handlers import *
 from query import Query
-import shutil
+
 opj = os.path.join
 
 class Site(object):
@@ -28,7 +31,7 @@ class Site(object):
                        'src_dir' : 'src',
                        'dest_dir' : 'output',
                        'files_dir' : 'files',
-                       'name' : '',
+                       'sitetitle' : '',
                        'template' : 'default.html',
                        'time' : datetime.now()}
         fh = open(opj(self.basepath, 'config.yaml'), 'r')
@@ -44,9 +47,17 @@ class Site(object):
                                                 opj(settings_dir, 'settings.py'))
 
         self.templates = {}
+        # Hacky, clean up later
+        def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
+            dt = datetime.strptime(value, '%m/%d/%Y')
+            return dt.strftime(format)
+        def linktofile(value):
+            name, ext = os.path.splitext(value)
+            return '<a href="{0}">[{1}]</a>'.format(value, ext[1:].upper())
         self.env = utils.make_html_env(opj(self.basepath,
                                            self.config['template_dir']))
-        
+        self.env.filters['datetimeformat'] = datetimeformat
+        self.env.filters['linktofile'] = linktofile
         self.things = []
         self.pages = []
         self.files = []
@@ -64,20 +75,19 @@ class Site(object):
                 fname, ext = os.path.splitext(f)
                 for pattern, handler in self.routes:
                     m = pattern.match(relpath)
-                    print pattern
                     if m:
                         h = handler(self, relpath)
                         self.things.append(h)
                         for output in h.render():
                             opath = opj(self.basepath,
                                         self.config['dest_dir'],
-                                        output[0])
+                                        output['dest'])
                             odir = os.path.dirname(opath)
                             if not os.path.isdir(odir):
                                 os.makedirs(odir)
-                            o = open(opath, 'w')
-                            print "Writing {0}".format(opath)
-                            o.write(output[1])
+                            o = codecs.open(opath, 'w', 'utf-8')
+                            print "Writing {0}".format(output['dest']) 
+                            o.write(output['text'])
                             o.close()
 
         fdir = self.config['files_dir']
@@ -98,7 +108,7 @@ class Site(object):
                 print "Will this be copied {0}".format(should_copy)
                 if should_copy:
                     odir = os.path.dirname(dest)
-                    if not os.path.isfile(odir):
+                    if not os.path.isdir(odir):
                         os.makedirs(odir)
                     shutil.copy2(src, dest)
                     
