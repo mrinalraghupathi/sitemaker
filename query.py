@@ -108,7 +108,7 @@ class Query(object):
             print "Could not load {0} {1}".format(e, self.filename)
         else:
             basename, ext = os.path.splitext(self.filename)
-            print basename, ext
+            # print basename, ext
             if ext == '.yaml':
                 data = yaml.load(f.read())
 

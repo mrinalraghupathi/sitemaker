@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from hashlib import sha1
 
 from jinja2 import Environment, FileSystemLoader, contextfilter
@@ -7,10 +8,28 @@ from jinja2 import Environment, FileSystemLoader, contextfilter
 def link(ctx, val):
     return ctx['root'] + val.dest
 
+
+def string_to_date(value, format='%H:%M / %d-%m-%Y'):
+    dt = datetime.strptime(value, '%m/%d/%Y')
+    return dt.strftime(format)
+
+
+def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
+    return value.strftime(format)
+
+
+def linktofile(value):
+    name, ext = os.path.splitext(value)
+    return '<a href="{0}">[{1}]</a>'.format(value, ext[1:].upper())
+
+
 def make_html_env(dir):
     env = Environment(loader = FileSystemLoader(dir),
                       trim_blocks = True)
     env.filters['link'] = link
+    env.filters['datetimeformat'] = string_to_date
+    env.filters['linktofile'] = linktofile
+    env.filters['formattime'] = datetimeformat
     return env
 
 

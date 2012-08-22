@@ -19,10 +19,11 @@ default_config = { 'template_dir' : 'templates',
 def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("action", nargs='?', default="build")
+    parser.add_argument("-p", nargs = "+")
+    parser.add_argument("-f", '--force', action='store_true', default = False)
     args = parser.parse_args()
     basedir = os.getcwd()
     if args.action == 'quickstart':
-        
         for k, v in default_config.iteritems():
             if k.endswith('_dir'):
                 os.mkdir(os.path.join(basedir, v))
@@ -31,7 +32,11 @@ def run():
         o.close()
     elif args.action == 'build':
         s = Site(basedir)
-        s.build()
+        if args.p:
+            paths_to_build = args.p
+        else:
+            paths_to_build = []
+        s.build(paths_to_build, args.force)
         
 
 if __name__ == "__main__":

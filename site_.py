@@ -1,16 +1,16 @@
 import os
 import codecs
-import csv
 import re
 import imp
-from datetime import datetime, time, date
+from datetime import datetime
 import shutil
-
+import fnmatch
 from hashlib import sha1
 import yaml
 
-from handlers import *
+from handlers import HTMLPage
 from query import Query
+import utils
 
 opj = os.path.join
 
@@ -35,83 +35,107 @@ class Site(object):
                        'sitetitle' : '',
                        'template' : 'default.html',
                        'time' : datetime.now()}
-        fh = open(opj(self.basepath, 'config.yaml'), 'r')
-        self.config.update(yaml.load(fh.read()))
+        file_h = open(opj(self.basepath, 'config.yaml'), 'r')
+        self.config.update(yaml.load(file_h.read()))
         
         settings_dir = opj(basepath, 'settings')
         self.settings = { 'routes' : [('.*.html$', HTMLPage)] }
         if os.path.isdir(opj(basepath, 'settings')):
             # import settings.py which should contain a routing table
             # at the minimum?
-            if os.path.isfile(opj(basepath ,'settings', 'settings.py')):
-                self.settings = imp.load_source('settings',
-                                                opj(settings_dir, 'settings.py'))
+            if os.path.isfile(opj(basepath, 'settings', 'settings.py')):
+                settings_file = opj(settings_dir, 'settings.py')
+                self.settings = imp.load_source('settings', settings_file)
 
         self.templates = {}
-        # Hacky, clean up later
-        def string_to_date(value, format='%H:%M / %d-%m-%Y'):
-            dt = datetime.strptime(value, '%m/%d/%Y')
-            return dt.strftime(format)
-        def datetimeformat(value, format='%H:%M / %d-%m-%Y'):
-            return value.strftime(format)
-        
-        def linktofile(value):
-            name, ext = os.path.splitext(value)
-            return '<a href="{0}">[{1}]</a>'.format(value, ext[1:].upper())
         self.env = utils.make_html_env(opj(self.basepath,
                                            self.config['template_dir']))
-        self.env.filters['datetimeformat'] = string_to_date
-        self.env.filters['linktofile'] = linktofile
-        self.env.filters['formattime'] = datetimeformat
+
         self.things = []
         self.pages = []
         self.files = []
         
         self.routes = self.settings['routes']
-        for i, rt in enumerate(self.routes):
-            self.routes[i] = (re.compile(rt[0]), rt[1])
-            
-    def build(self, paths_to_build = []):
-        src_dir =  self.config['src_dir']
-        for path, ds, fs in os.walk(src_dir):
-            for f in fs:
-                fullpath = opj(self.basepath, path, f)
-                relpath = os.path.relpath(opj(path, f), src_dir)
-                fname, ext = os.path.splitext(f)
-                for pattern, handler in self.routes:
-                    m = pattern.match(relpath)
-                    if m:
-                        h = handler(self, relpath)
-                        self.things.append(h)
-                        for output in h.render():
-                            opath = opj(self.basepath,
-                                        self.config['dest_dir'],
-                                        output['dest'])
-                            odir = os.path.dirname(opath)
-                            if not os.path.isdir(odir):
-                                os.makedirs(odir)
-                                
-                            should_write = True
-                            if os.path.isfile(opath):
-                                fh = open(opath, 'rb')
-                                s = fh.read()
-                                fh.close()
-                                current_hash = sha1(s).hexdigest()
-                                new_hash = sha1(output['text'].encode('utf-8')).hexdigest()
-                                if current_hash == new_hash:
-                                    should_write = False
-                                
-                            if should_write:
-                                o = codecs.open(opath, 'w', 'utf-8')
-                                print "Writing {0}".format(output['dest']) 
-                                o.write(output['text'])
-                                o.close()
+        for i, route in enumerate(self.routes):
+            self.routes[i] = (re.compile(route[0]), route[1])
 
+
+    def generate_path(self, relpath, force = False):
+        """Decides whether a path needs to be written and if so writes
+           the path to the output file"""
+        def should_write(output, path):
+            if os.path.isfile(path):
+                file_h = open(path, 'rb')
+                contents = file_h.read()
+                file_h.close()
+                current_hash = utils.hashfunc(contents)
+                encode_txt = output['text'].encode('utf-8')
+                new_hash = utils.hashfunc(encode_txt)
+                if current_hash == new_hash:
+                    return False
+            return True
+
+                    
+        # fullpath = opj(self.basepath, path)
+        # relpath = os.path.relpath(opj(path), self.config['src_dir'])
+        # fname, ext = os.path.splitext(relpath)
+        for pattern, handler_class in self.routes:
+            match = pattern.match(relpath)
+            if match:
+                handler = handler_class(self, relpath)
+                self.things.append(handler)
+                for output in handler.render():
+                    opath = opj(self.basepath,
+                                self.config['dest_dir'],
+                                output['dest'])
+                    odir = os.path.dirname(opath)
+                    if not os.path.isdir(odir):
+                        os.makedirs(odir)
+                    should_write = True
+                    if not force:
+                        update = should_write(output, opath)
+                    if update:
+                        dest_file = codecs.open(opath, 'w', 'utf-8')
+                        print "Writing {0}".format(output['dest']) 
+                        dest_file.write(output['text'])
+                        dest_file.close()
+
+
+    def generate(self, paths_to_build = None, force = False):
+        src_dir =  self.config['src_dir']
+        # compute the length, since we will strip off that many
+        # characters from the path, plus one for the slash
+        take_off = len(src_dir) + 1
+        for path, _, files in os.walk(src_dir):
+            files = [opj(path, file_)[take_off:] for file_ in files]
+            if paths_to_build:
+                temp = []
+                for patt in paths_to_build:
+                    # print patt, fs
+                    temp += fnmatch.filter(files, patt)
+                files = temp
+            for file_ in files:
+                self.generate_path(file_, force)
+
+                                
+    def copy_file_path(self):
+        pass
+    
+    
+    def copy_files(self):
+        # copy and preserve symlinks
+        def mycopy(src, dest):
+            if os.path.islink(src):
+                path = os.readlink(src)
+                os.symlink(path, dest)
+            else:
+                shutil.copy2(src, dest)
+                
         fdir = self.config['files_dir']
-        for path, ds, fs in os.walk(fdir):
-            for f in fs:
-                src = opj(path, f)
-                relpath = os.path.relpath(opj(path, f), fdir)
+        for path, _, files in os.walk(fdir):
+            for file_ in files:
+                src = opj(path, file_)
+                relpath = os.path.relpath(opj(path, file_), fdir)
                 dest = opj(self.config['dest_dir'], relpath)
                 
                 src_time = os.path.getmtime(src)
@@ -128,13 +152,20 @@ class Site(object):
                     odir = os.path.dirname(dest)
                     if not os.path.isdir(odir):
                         os.makedirs(odir)
-                    shutil.copy2(src, dest)
+                    mycopy(src, dest)
+
                     
+    def build(self, paths_to_build = [], force = False):
+        self.generate(paths_to_build, force)
+        self.copy_files()
+
+        
     def get_template(self, name):
         if name not in self.templates:
             self.templates[name] = self.env.get_template(name)
         return self.templates[name]
 
+
     def get_data(self, query_string):
-        q = Query(self.config['data_dir'], query_string)
-        return q.load_data()        
+        query = Query(self.config['data_dir'], query_string)
+        return query.load_data()        
