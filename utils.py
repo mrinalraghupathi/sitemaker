@@ -6,7 +6,7 @@ from jinja2 import Environment, FileSystemLoader, contextfilter
 
 @contextfilter
 def link(ctx, val):
-    return ctx['root'] + val.dest
+    return ctx['root'] + val.path
 
 
 def string_to_date(value, format='%H:%M / %d-%m-%Y'):

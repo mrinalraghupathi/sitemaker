@@ -5,6 +5,7 @@ import imp
 from datetime import datetime
 import shutil
 import fnmatch
+import glob
 from hashlib import sha1
 import yaml
 
@@ -39,14 +40,16 @@ class Site(object):
         self.config.update(yaml.load(file_h.read()))
         
         settings_dir = opj(basepath, 'settings')
-        self.settings = { 'routes' : [('.*.html$', HTMLPage)] }
-        if os.path.isdir(opj(basepath, 'settings')):
-            # import settings.py which should contain a routing table
-            # at the minimum?
-            if os.path.isfile(opj(basepath, 'settings', 'settings.py')):
-                settings_file = opj(settings_dir, 'settings.py')
-                self.settings = imp.load_source('settings', settings_file)
 
+        if (os.path.isdir(opj(basepath, 'settings')) and
+            os.path.isfile(opj(basepath, 'settings', 'settings.py'))):
+            # import settings.py which should contain a routing table
+            settings_file = opj(settings_dir, 'settings.py')
+            self.settings = imp.load_source('settings', settings_file)
+        else:
+            self.settings = imp.new_module('__settings__')
+            self.settings.routes = [('.*.html$', HTMLPage)]
+            
         self.templates = {}
         self.env = utils.make_html_env(opj(self.basepath,
                                            self.config['template_dir']))
@@ -55,7 +58,7 @@ class Site(object):
         self.pages = []
         self.files = []
         
-        self.routes = self.settings['routes']
+        self.routes = self.settings.routes
         for i, route in enumerate(self.routes):
             self.routes[i] = (re.compile(route[0]), route[1])
 
@@ -80,8 +83,10 @@ class Site(object):
         # relpath = os.path.relpath(opj(path), self.config['src_dir'])
         # fname, ext = os.path.splitext(relpath)
         for pattern, handler_class in self.routes:
+            
             match = pattern.match(relpath)
             if match:
+                print 'Generating {0} {1}'.format(relpath, handler_class)
                 handler = handler_class(self, relpath)
                 self.things.append(handler)
                 for output in handler.render():
@@ -91,7 +96,6 @@ class Site(object):
                     odir = os.path.dirname(opath)
                     if not os.path.isdir(odir):
                         os.makedirs(odir)
-                    should_write = True
                     if not force:
                         update = should_write(output, opath)
                     if update:
@@ -99,6 +103,7 @@ class Site(object):
                         print "Writing {0}".format(output['dest']) 
                         dest_file.write(output['text'])
                         dest_file.close()
+                break
 
 
     def generate(self, paths_to_build = None, force = False):
@@ -168,4 +173,11 @@ class Site(object):
 
     def get_data(self, query_string):
         query = Query(self.config['data_dir'], query_string)
-        return query.load_data()        
+        return query.load_data()
+
+    def get_files(self, pattern):
+        """Take a unix-style glob pattern and return all files
+        matching the patter in the files directory"""
+        basename = self.config['files_dir'] + '/'
+        n = len(basename)
+        return [f[n:] for f in glob.glob(basename + pattern)]
