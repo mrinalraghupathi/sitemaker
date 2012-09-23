@@ -138,6 +138,8 @@ class Site(object):
                 
         fdir = self.config['files_dir']
         for path, _, files in os.walk(fdir):
+            # A hack on OSX to avoid copying DS_Store files
+            files = [f for f in files if not f.startswith('.DS')]
             for file_ in files:
                 src = opj(path, file_)
                 relpath = os.path.relpath(opj(path, file_), fdir)
@@ -159,7 +161,10 @@ class Site(object):
                         os.makedirs(odir)
                     mycopy(src, dest)
 
-                    
+    def clean_up(self):
+        """Clean up the output directory by deleting files that did not appear"""
+        pass
+    
     def build(self, paths_to_build = [], force = False):
         self.generate(paths_to_build, force)
         self.copy_files()
